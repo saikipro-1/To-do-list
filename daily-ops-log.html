@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Ops Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14170f;
+    --panel: #1d2117;
+    --panel-raised: #262b1f;
+    --line: #3a4030;
+    --paper: #ece4cf;
+    --paper-dim: #a9a690;
+    --brass: #c9973f;
+    --brass-dim: #8c6c34;
+    --ok: #7a9a5f;
+    --warn: #b4553f;
+    --shadow: rgba(0,0,0,0.4);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top left, rgba(201,151,63,0.05), transparent 50%),
+      var(--bg);
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    padding: 28px 20px 60px;
+    min-height: 100vh;
+  }
+  .wrap{ max-width: 980px; margin: 0 auto; }
+
+  /* Header */
+  .hdr{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom: 2px solid var(--brass-dim);
+    padding-bottom: 14px; margin-bottom: 24px;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .hdr-eyebrow{
+    font-size: 11px; letter-spacing: 3px; color: var(--brass);
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .hdr h1{
+    font-family: 'Oswald', sans-serif; font-weight: 700;
+    font-size: 34px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--paper);
+  }
+  .hdr .sub{ color: var(--paper-dim); font-size: 12px; margin-top: 4px; }
+  .date-nav{ display:flex; align-items:center; gap:10px; }
+  .date-nav button{
+    background: var(--panel-raised); border: 1px solid var(--line); color: var(--paper);
+    font-family: 'JetBrains Mono', monospace; font-size: 16px; width: 32px; height: 32px;
+    cursor: pointer; border-radius: 3px;
+  }
+  .date-nav button:hover{ border-color: var(--brass); color: var(--brass); }
+  .date-nav .date-label{
+    font-size: 13px; color: var(--brass); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 3px; background: var(--panel-raised);
+    min-width: 130px; text-align:center;
+  }
+  .today-btn{
+    font-size: 10px; letter-spacing: 1px; color: var(--paper-dim);
+    text-decoration: underline; cursor: pointer; text-transform: uppercase;
+  }
+  .today-btn:hover{ color: var(--brass); }
+
+  /* Readiness dial row */
+  .readiness{
+    display:grid; grid-template-columns: 160px 1fr; gap: 24px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px; margin-bottom: 22px; align-items:center;
+  }
+  .dial{ position: relative; width: 140px; height: 140px; margin: 0 auto; }
+  .dial svg{ transform: rotate(-90deg); }
+  .dial-track{ fill:none; stroke: var(--line); stroke-width: 10; }
+  .dial-fill{ fill:none; stroke: var(--brass); stroke-width: 10; stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s ease; }
+  .dial-center{
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+  }
+  .dial-pct{ font-family:'Oswald',sans-serif; font-size: 30px; font-weight:700; color: var(--paper); }
+  .dial-label{ font-size: 9px; letter-spacing: 1px; color: var(--paper-dim); text-transform:uppercase; }
+  .readiness-stats{ display:flex; flex-direction:column; gap: 10px; }
+  .readiness-title{
+    font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:2px;
+    text-transform:uppercase; color: var(--brass); margin-bottom: 4px;
+  }
+  .rs-row{ display:flex; justify-content:space-between; font-size:12px; color: var(--paper-dim); }
+  .rs-row b{ color: var(--paper); font-weight:600; }
+
+  /* Grid layout */
+  .grid{ display:grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
+  @media (max-width: 760px){ .grid{ grid-template-columns: 1fr; } }
+
+  .panel{
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 18px 18px 20px;
+  }
+  .panel-title{
+    font-family:'Oswald',sans-serif; font-size:14px; letter-spacing:2px;
+    text-transform:uppercase; color: var(--brass); margin-bottom: 14px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .panel-title::before{ content:''; width:6px; height:6px; background: var(--brass); display:inline-block; }
+
+  /* To-do */
+  .add-task{ display:flex; gap:8px; margin-bottom: 14px; }
+  .add-task input[type=text]{
+    flex:1; background: var(--panel-raised); border:1px solid var(--line); color: var(--paper);
+    padding: 9px 10px; border-radius:3px; font-family:'JetBrains Mono',monospace; font-size:13px;
+  }
+  .add-task select{
+    background: var(--panel-raised); border:1px solid var(--line); color: var(--paper);
+    padding: 9px 8px; border-radius:3px; font-family:'JetBrains Mono',monospace; font-size:12px;
+  }
+  .add-task button{
+    background: var(--brass); border:none; color: #1a1a12; font-weight:700;
+    padding: 9px 16px; border-radius:3px; cursor:pointer; font-family:'Oswald',sans-serif;
+    letter-spacing:1px; font-size:12px; text-transform:uppercase;
+  }
+  .add-task button:hover{ background:#dba94c; }
+  .task-list{ display:flex; flex-direction:column; gap:8px; max-height: 340px; overflow-y:auto; }
+  .task{
+    display:flex; align-items:center; gap:10px; padding: 9px 10px;
+    background: var(--panel-raised); border-radius:4px; border-left: 3px solid var(--brass-dim);
+  }
+  .task.done{ opacity: 0.45; border-left-color: var(--ok); }
+  .task.done .task-text{ text-decoration: line-through; }
+  .task input[type=checkbox]{ accent-color: var(--brass); width:16px; height:16px; cursor:pointer; flex-shrink:0; }
+  .task-text{ flex:1; font-size: 13px; }
+  .task-tag{
+    font-size: 9px; letter-spacing:0.5px; color: var(--bg); background: var(--paper-dim);
+    padding: 2px 6px; border-radius: 2px; text-transform:uppercase; flex-shrink:0;
+  }
+  .task-del{ cursor:pointer; color: var(--warn); font-size:14px; opacity:0.6; flex-shrink:0; }
+  .task-del:hover{ opacity:1; }
+  .empty-note{ color: var(--paper-dim); font-size:12px; font-style:italic; padding: 10px 0; }
+
+  /* Hours */
+  .hours-row{ margin-bottom: 16px; }
+  .hours-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .hours-name{ font-size:12px; color: var(--paper); }
+  .hours-vals{ font-size:11px; color: var(--paper-dim); }
+  .hours-vals b{ color: var(--brass); }
+  .bar-track{ height: 8px; background: var(--panel-raised); border-radius:4px; overflow:hidden; margin-bottom: 6px;}
+  .bar-fill{ height:100%; background: var(--brass); border-radius:4px; transition: width 0.4s ease; }
+  .bar-fill.over{ background: var(--ok); }
+  .hours-controls{ display:flex; gap:6px; align-items:center; }
+  .hours-controls input{
+    width: 60px; background: var(--panel-raised); border:1px solid var(--line); color: var(--paper);
+    padding: 5px 7px; border-radius:3px; font-family:'JetBrains Mono',monospace; font-size:12px;
+  }
+  .hours-controls button{
+    background: var(--panel-raised); border:1px solid var(--brass-dim); color: var(--brass);
+    padding: 5px 10px; border-radius:3px; cursor:pointer; font-size:11px; letter-spacing:0.5px;
+  }
+  .hours-controls button:hover{ background: var(--brass); color:#1a1a12; }
+  .target-edit{ font-size:10px; color: var(--paper-dim); cursor:pointer; text-decoration:underline; }
+  .target-edit:hover{ color: var(--brass); }
+
+  /* History */
+  .history{ margin-top: 22px; }
+  .history-chart{
+    display:flex; align-items:flex-end; gap: 6px; height: 100px; padding: 0 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .hist-col{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+  .hist-bar{ width: 100%; max-width: 26px; background: var(--brass-dim); border-radius: 2px 2px 0 0; transition: height 0.4s ease; cursor:pointer; }
+  .hist-bar.full{ background: var(--ok); }
+  .hist-bar:hover{ background: var(--brass); }
+  .hist-labels{ display:flex; gap:6px; padding: 0 4px; margin-top: 6px; }
+  .hist-lbl{ flex:1; text-align:center; font-size:9px; color: var(--paper-dim); max-width: 32px; }
+
+  ::-webkit-scrollbar{ width: 6px; }
+  ::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 3px; }
+
+  .save-flag{
+    position: fixed; bottom: 18px; right: 18px; font-size: 11px; color: var(--paper-dim);
+    background: var(--panel); border:1px solid var(--line); padding: 6px 12px; border-radius: 4px;
+    opacity: 0; transition: opacity 0.3s ease; letter-spacing: 0.5px;
+  }
+  .save-flag.show{ opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <div>
+      <div class="hdr-eyebrow">Cadet Trinav — NDA / CLAT Command</div>
+      <h1>Daily Ops Log</h1>
+      <div class="sub">Objectives, hours logged vs. hours ordered.</div>
+    </div>
+    <div>
+      <div class="date-nav">
+        <button id="prevDay">‹</button>
+        <span class="date-label" id="dateLabel">—</span>
+        <button id="nextDay">›</button>
+      </div>
+      <div style="text-align:right; margin-top:6px;">
+        <span class="today-btn" id="jumpToday">Jump to today</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="readiness">
+    <div class="dial">
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle class="dial-track" cx="70" cy="70" r="60"></circle>
+        <circle class="dial-fill" id="dialFill" cx="70" cy="70" r="60"
+          stroke-dasharray="377" stroke-dashoffset="377"></circle>
+      </svg>
+      <div class="dial-center">
+        <div class="dial-pct" id="dialPct">0%</div>
+        <div class="dial-label">Readiness</div>
+      </div>
+    </div>
+    <div class="readiness-stats">
+      <div class="readiness-title">Daily Debrief</div>
+      <div class="rs-row"><span>Objectives cleared</span><b id="statTasks">0 / 0</b></div>
+      <div class="rs-row"><span>Hours logged vs. ordered</span><b id="statHours">0.0 / 0.0</b></div>
+      <div class="rs-row"><span>Categories at or above target</span><b id="statCats">0 / 0</b></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <div class="panel-title">Today's Objectives</div>
+      <div class="add-task">
+        <input type="text" id="taskInput" placeholder="Add an objective...">
+        <select id="taskCategory"></select>
+        <button id="addTaskBtn">Add</button>
+      </div>
+      <div class="task-list" id="taskList"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Hours vs. Target</div>
+      <div id="hoursList"></div>
+    </div>
+  </div>
+
+  <div class="panel history">
+    <div class="panel-title">Last 14 Days — Readiness</div>
+    <div class="history-chart" id="histChart"></div>
+    <div class="hist-labels" id="histLabels"></div>
+  </div>
+
+</div>
+
+<div class="save-flag" id="saveFlag">Saved</div>
+
+<script>
+const CATEGORIES = ['NDA Maths','NDA Physics','Geography','Biology','CLAT','Gym'];
+const STORAGE_KEY = 'ops-log-data-v1';
+const DIAL_CIRC = 2 * Math.PI * 60;
+
+let state = { targets: {}, days: {} };
+let currentDate = todayStr();
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function addDays(dateStr, n){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function formatLabel(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+  return d.toLocaleDateString('en-US', opts);
+}
+function shortLabel(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+}
+
+function defaultTargets(){
+  const t = {};
+  CATEGORIES.forEach(c => t[c] = c === 'Gym' ? 1 : 1.5);
+  return t;
+}
+
+function ensureDay(dateStr){
+  if(!state.days[dateStr]){
+    state.days[dateStr] = { tasks: [], hours: {} };
+  }
+  if(!state.days[dateStr].hours) state.days[dateStr].hours = {};
+  return state.days[dateStr];
+}
+
+async function loadState(){
+  try{
+    const result = await window.storage.get(STORAGE_KEY, false);
+    if(result && result.value){
+      const parsed = JSON.parse(result.value);
+      state = parsed;
+      if(!state.targets) state.targets = defaultTargets();
+      if(!state.days) state.days = {};
+    } else {
+      state = { targets: defaultTargets(), days: {} };
+    }
+  }catch(e){
+    state = { targets: defaultTargets(), days: {} };
+  }
+}
+
+let saveTimeout = null;
+async function saveState(){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+    flashSave();
+  }catch(e){
+    console.error('Save failed', e);
+  }
+}
+function flashSave(){
+  const flag = document.getElementById('saveFlag');
+  flag.classList.add('show');
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => flag.classList.remove('show'), 1200);
+}
+
+function readinessForDay(dateStr){
+  const day = state.days[dateStr];
+  if(!day) return { pct: 0, tasksDone: 0, tasksTotal: 0, hoursLogged: 0, hoursTarget: 0, catsMet: 0, catsTotal: CATEGORIES.length };
+  const tasksTotal = day.tasks.length;
+  const tasksDone = day.tasks.filter(t => t.done).length;
+  let hoursLogged = 0, hoursTarget = 0, catsMet = 0;
+  CATEGORIES.forEach(c => {
+    const logged = day.hours[c] || 0;
+    const target = state.targets[c] || 0;
+    hoursLogged += logged;
+    hoursTarget += target;
+    if(target > 0 && logged >= target) catsMet++;
+  });
+  const taskScore = tasksTotal > 0 ? (tasksDone / tasksTotal) : (hoursTarget > 0 ? null : 0);
+  const hourScore = hoursTarget > 0 ? Math.min(hoursLogged / hoursTarget, 1) : null;
+  let pct;
+  if(taskScore === null && hourScore === null) pct = 0;
+  else if(taskScore === null) pct = hourScore;
+  else if(hourScore === null) pct = taskScore;
+  else pct = (taskScore + hourScore) / 2;
+  return { pct: Math.round(pct * 100), tasksDone, tasksTotal, hoursLogged, hoursTarget, catsMet, catsTotal: CATEGORIES.length };
+}
+
+function render(){
+  document.getElementById('dateLabel').textContent = formatLabel(currentDate);
+  renderReadiness();
+  renderTasks();
+  renderHours();
+  renderHistory();
+}
+
+function renderReadiness(){
+  const r = readinessForDay(currentDate);
+  document.getElementById('dialPct').textContent = r.pct + '%';
+  const offset = DIAL_CIRC - (DIAL_CIRC * r.pct / 100);
+  document.getElementById('dialFill').style.strokeDashoffset = offset;
+  document.getElementById('statTasks').textContent = r.tasksDone + ' / ' + r.tasksTotal;
+  document.getElementById('statHours').textContent = r.hoursLogged.toFixed(1) + ' / ' + r.hoursTarget.toFixed(1);
+  document.getElementById('statCats').textContent = r.catsMet + ' / ' + r.catsTotal;
+}
+
+function renderTasks(){
+  const day = ensureDay(currentDate);
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+  if(day.tasks.length === 0){
+    list.innerHTML = '<div class="empty-note">No objectives logged for this day yet.</div>';
+    return;
+  }
+  day.tasks.forEach(task => {
+    const row = document.createElement('div');
+    row.className = 'task' + (task.done ? ' done' : '');
+    row.innerHTML = `
+      <input type="checkbox" ${task.done ? 'checked' : ''}>
+      <span class="task-text">${escapeHtml(task.text)}</span>
+      <span class="task-tag">${escapeHtml(task.category)}</span>
+      <span class="task-del">✕</span>
+    `;
+    row.querySelector('input').addEventListener('change', () => {
+      task.done = !task.done;
+      saveState(); renderReadiness(); renderHistory();
+      row.classList.toggle('done');
+    });
+    row.querySelector('.task-del').addEventListener('click', () => {
+      day.tasks = day.tasks.filter(t => t.id !== task.id);
+      saveState(); renderTasks(); renderReadiness(); renderHistory();
+    });
+    list.appendChild(row);
+  });
+}
+
+function renderHours(){
+  const day = ensureDay(currentDate);
+  const container = document.getElementById('hoursList');
+  container.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const logged = day.hours[cat] || 0;
+    const target = state.targets[cat] || 0;
+    const pct = target > 0 ? Math.min((logged / target) * 100, 100) : 0;
+    const over = target > 0 && logged >= target;
+    const row = document.createElement('div');
+    row.className = 'hours-row';
+    row.innerHTML = `
+      <div class="hours-head">
+        <span class="hours-name">${cat}</span>
+        <span class="hours-vals"><b>${logged.toFixed(1)}h</b> / ${target.toFixed(1)}h</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill ${over ? 'over' : ''}" style="width:${pct}%"></div></div>
+      <div class="hours-controls">
+        <input type="number" step="0.25" min="0" placeholder="hrs" class="hoursAdd">
+        <button class="logBtn">Log</button>
+        <span class="target-edit" data-cat="${cat}">edit target</span>
+      </div>
+    `;
+    row.querySelector('.logBtn').addEventListener('click', () => {
+      const input = row.querySelector('.hoursAdd');
+      const val = parseFloat(input.value);
+      if(!isNaN(val) && val > 0){
+        day.hours[cat] = (day.hours[cat] || 0) + val;
+        input.value = '';
+        saveState(); renderHours(); renderReadiness(); renderHistory();
+      }
+    });
+    row.querySelector('.target-edit').addEventListener('click', () => {
+      const newTarget = prompt(`Set daily target hours for ${cat}:`, target);
+      if(newTarget !== null && !isNaN(parseFloat(newTarget))){
+        state.targets[cat] = Math.max(0, parseFloat(newTarget));
+        saveState(); renderHours(); renderReadiness(); renderHistory();
+      }
+    });
+    container.appendChild(row);
+  });
+}
+
+function renderHistory(){
+  const chart = document.getElementById('histChart');
+  const labels = document.getElementById('histLabels');
+  chart.innerHTML = '';
+  labels.innerHTML = '';
+  for(let i = 13; i >= 0; i--){
+    const d = addDays(currentDate, -i);
+    const r = readinessForDay(d);
+    const col = document.createElement('div');
+    col.className = 'hist-col';
+    const bar = document.createElement('div');
+    bar.className = 'hist-bar' + (r.pct >= 100 ? ' full' : '');
+    bar.style.height = Math.max(r.pct, 2) + '%';
+    bar.title = shortLabel(d) + ': ' + r.pct + '%';
+    bar.addEventListener('click', () => { currentDate = d; render(); });
+    col.appendChild(bar);
+    chart.appendChild(col);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'hist-lbl';
+    lbl.textContent = shortLabel(d);
+    labels.appendChild(lbl);
+  }
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function populateCategorySelect(){
+  const sel = document.getElementById('taskCategory');
+  sel.innerHTML = '';
+  CATEGORIES.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+}
+
+document.getElementById('addTaskBtn').addEventListener('click', addTask);
+document.getElementById('taskInput').addEventListener('keydown', e => { if(e.key === 'Enter') addTask(); });
+function addTask(){
+  const input = document.getElementById('taskInput');
+  const cat = document.getElementById('taskCategory').value;
+  const text = input.value.trim();
+  if(!text) return;
+  const day = ensureDay(currentDate);
+  day.tasks.push({ id: 't' + Date.now() + Math.random().toString(36).slice(2,6), text, category: cat, done: false });
+  input.value = '';
+  saveState(); renderTasks(); renderReadiness(); renderHistory();
+}
+
+document.getElementById('prevDay').addEventListener('click', () => { currentDate = addDays(currentDate, -1); render(); });
+document.getElementById('nextDay').addEventListener('click', () => { currentDate = addDays(currentDate, 1); render(); });
+document.getElementById('jumpToday').addEventListener('click', () => { currentDate = todayStr(); render(); });
+
+(async function init(){
+  populateCategorySelect();
+  await loadState();
+  render();
+})();
+</script>
+</body>
+</html>
