@@ -92,6 +92,45 @@
   .rs-row{ display:flex; justify-content:space-between; font-size:12px; color: var(--paper-dim); }
   .rs-row b{ color: var(--paper); font-weight:600; }
 
+  /* Pomodoro */
+  .pomo{
+    display:grid; grid-template-columns: 200px 1fr; gap: 24px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px; margin-bottom: 22px; align-items:center;
+  }
+  @media (max-width: 620px){ .pomo{ grid-template-columns: 1fr; } }
+  .pomo-clock{ position: relative; width: 180px; height: 180px; margin: 0 auto; }
+  .pomo-clock svg{ transform: rotate(-90deg); }
+  .pomo-track{ fill:none; stroke: var(--line); stroke-width: 10; }
+  .pomo-fill{ fill:none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 0.3s ease; }
+  .pomo-fill.work{ stroke: var(--brass); }
+  .pomo-fill.break{ stroke: var(--ok); }
+  .pomo-center{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .pomo-time{ font-family:'Oswald',sans-serif; font-size: 34px; font-weight:700; color: var(--paper); letter-spacing:1px; }
+  .pomo-phase{ font-size: 10px; letter-spacing: 2px; color: var(--paper-dim); text-transform:uppercase; margin-top:2px; }
+  .pomo-right{ display:flex; flex-direction:column; gap: 12px; }
+  .pomo-row{ display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
+  .pomo-row label{ font-size: 11px; color: var(--paper-dim); }
+  .pomo-row input[type=number]{
+    width: 54px; background: var(--panel-raised); border:1px solid var(--line); color: var(--paper);
+    padding: 6px 8px; border-radius:3px; font-family:'JetBrains Mono',monospace; font-size:12px;
+  }
+  .pomo-row select{
+    background: var(--panel-raised); border:1px solid var(--line); color: var(--paper);
+    padding: 6px 8px; border-radius:3px; font-family:'JetBrains Mono',monospace; font-size:12px;
+  }
+  .pomo-controls{ display:flex; gap: 8px; }
+  .pomo-controls button{
+    font-family:'Oswald',sans-serif; letter-spacing:1px; font-size:12px; text-transform:uppercase;
+    border-radius:3px; cursor:pointer; padding: 8px 16px; border: 1px solid var(--brass-dim);
+    background: var(--panel-raised); color: var(--brass);
+  }
+  .pomo-controls button:hover{ background: var(--brass); color:#1a1a12; }
+  .pomo-controls button.primary{ background: var(--brass); color:#1a1a12; }
+  .pomo-controls button.primary:hover{ background:#dba94c; }
+  .pomo-sessions{ font-size: 11px; color: var(--paper-dim); }
+  .pomo-sessions b{ color: var(--brass); }
+
   /* Grid layout */
   .grid{ display:grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
   @media (max-width: 760px){ .grid{ grid-template-columns: 1fr; } }
@@ -227,6 +266,37 @@
     </div>
   </div>
 
+  <div class="pomo">
+    <div class="pomo-clock">
+      <svg width="180" height="180" viewBox="0 0 180 180">
+        <circle class="pomo-track" cx="90" cy="90" r="78"></circle>
+        <circle class="pomo-fill work" id="pomoFill" cx="90" cy="90" r="78"
+          stroke-dasharray="490" stroke-dashoffset="0"></circle>
+      </svg>
+      <div class="pomo-center">
+        <div class="pomo-time" id="pomoTime">25:00</div>
+        <div class="pomo-phase" id="pomoPhase">Focus</div>
+      </div>
+    </div>
+    <div class="pomo-right">
+      <div class="panel-title" style="margin-bottom:0;">Pomodoro</div>
+      <div class="pomo-row">
+        <label>Focus (min)</label><input type="number" id="pomoWorkMin" value="25" min="1" max="120">
+        <label>Break (min)</label><input type="number" id="pomoBreakMin" value="5" min="1" max="60">
+      </div>
+      <div class="pomo-row">
+        <label>Log focus time to</label>
+        <select id="pomoCategory"></select>
+      </div>
+      <div class="pomo-controls">
+        <button class="primary" id="pomoStartPause">Start</button>
+        <button id="pomoReset">Reset</button>
+        <button id="pomoSkip">Skip</button>
+      </div>
+      <div class="pomo-sessions">Focus sessions completed today: <b id="pomoCount">0</b></div>
+    </div>
+  </div>
+
   <div class="grid">
     <div class="panel">
       <div class="panel-title">Today's Objectives</div>
@@ -297,9 +367,9 @@ function ensureDay(dateStr){
 
 async function loadState(){
   try{
-    const result = await window.storage.get(STORAGE_KEY, false);
-    if(result && result.value){
-      const parsed = JSON.parse(result.value);
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
       state = parsed;
       if(!state.targets) state.targets = defaultTargets();
       if(!state.days) state.days = {};
@@ -314,7 +384,7 @@ async function loadState(){
 let saveTimeout = null;
 async function saveState(){
   try{
-    await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     flashSave();
   }catch(e){
     console.error('Save failed', e);
@@ -480,7 +550,122 @@ function populateCategorySelect(){
     opt.value = c; opt.textContent = c;
     sel.appendChild(opt);
   });
+  const pomoSel = document.getElementById('pomoCategory');
+  pomoSel.innerHTML = '';
+  CATEGORIES.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    pomoSel.appendChild(opt);
+  });
 }
+
+/* ---------- Pomodoro Timer ---------- */
+const POMO_CIRC = 2 * Math.PI * 78;
+let pomo = {
+  phase: 'work',       // 'work' | 'break'
+  remaining: 25 * 60,   // seconds left in current phase
+  running: false,
+  intervalId: null
+};
+
+function pomoTotalSeconds(){
+  const mins = pomo.phase === 'work'
+    ? parseFloat(document.getElementById('pomoWorkMin').value) || 25
+    : parseFloat(document.getElementById('pomoBreakMin').value) || 5;
+  return Math.round(mins * 60);
+}
+
+function renderPomo(){
+  const total = pomoTotalSeconds();
+  const mm = Math.floor(pomo.remaining / 60).toString().padStart(2, '0');
+  const ss = Math.floor(pomo.remaining % 60).toString().padStart(2, '0');
+  document.getElementById('pomoTime').textContent = mm + ':' + ss;
+  document.getElementById('pomoPhase').textContent = pomo.phase === 'work' ? 'Focus' : 'Break';
+  const fill = document.getElementById('pomoFill');
+  fill.setAttribute('stroke-dasharray', POMO_CIRC);
+  const fraction = total > 0 ? (pomo.remaining / total) : 0;
+  fill.style.strokeDashoffset = POMO_CIRC * (1 - fraction);
+  fill.classList.toggle('work', pomo.phase === 'work');
+  fill.classList.toggle('break', pomo.phase === 'break');
+  document.getElementById('pomoStartPause').textContent = pomo.running ? 'Pause' : 'Start';
+  const day = state.days[todayStr()];
+  document.getElementById('pomoCount').textContent = (day && day.pomodoroCount) || 0;
+}
+
+function pomoBeep(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + 0.6);
+  }catch(e){ /* audio not available, ignore */ }
+}
+
+function pomoTick(){
+  pomo.remaining -= 1;
+  if(pomo.remaining <= 0){
+    pomoPhaseComplete();
+  } else {
+    renderPomo();
+  }
+}
+
+function pomoPhaseComplete(){
+  pomoBeep();
+  if(pomo.phase === 'work'){
+    const workMin = parseFloat(document.getElementById('pomoWorkMin').value) || 25;
+    const category = document.getElementById('pomoCategory').value;
+    const day = ensureDay(todayStr());
+    day.hours[category] = (day.hours[category] || 0) + (workMin / 60);
+    day.pomodoroCount = (day.pomodoroCount || 0) + 1;
+    saveState();
+    if(todayStr() === currentDate){ renderHours(); renderReadiness(); renderHistory(); }
+    pomo.phase = 'break';
+  } else {
+    pomo.phase = 'work';
+  }
+  pomo.remaining = pomoTotalSeconds();
+  renderPomo();
+}
+
+function pomoStart(){
+  if(pomo.running) return;
+  pomo.running = true;
+  pomo.intervalId = setInterval(pomoTick, 1000);
+  renderPomo();
+}
+function pomoPause(){
+  pomo.running = false;
+  clearInterval(pomo.intervalId);
+  renderPomo();
+}
+function pomoReset(){
+  pomoPause();
+  pomo.phase = 'work';
+  pomo.remaining = pomoTotalSeconds();
+  renderPomo();
+}
+function pomoSkip(){
+  pomoPause();
+  pomoPhaseComplete();
+}
+
+document.getElementById('pomoStartPause').addEventListener('click', () => {
+  pomo.running ? pomoPause() : pomoStart();
+});
+document.getElementById('pomoReset').addEventListener('click', pomoReset);
+document.getElementById('pomoSkip').addEventListener('click', pomoSkip);
+document.getElementById('pomoWorkMin').addEventListener('change', () => {
+  if(!pomo.running && pomo.phase === 'work'){ pomo.remaining = pomoTotalSeconds(); renderPomo(); }
+});
+document.getElementById('pomoBreakMin').addEventListener('change', () => {
+  if(!pomo.running && pomo.phase === 'break'){ pomo.remaining = pomoTotalSeconds(); renderPomo(); }
+});
 
 document.getElementById('addTaskBtn').addEventListener('click', addTask);
 document.getElementById('taskInput').addEventListener('keydown', e => { if(e.key === 'Enter') addTask(); });
@@ -502,7 +687,9 @@ document.getElementById('jumpToday').addEventListener('click', () => { currentDa
 (async function init(){
   populateCategorySelect();
   await loadState();
+  pomo.remaining = pomoTotalSeconds();
   render();
+  renderPomo();
 })();
 </script>
 </body>
