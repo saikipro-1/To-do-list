@@ -131,6 +131,52 @@
   .pomo-sessions{ font-size: 11px; color: var(--paper-dim); }
   .pomo-sessions b{ color: var(--brass); }
 
+  /* Syllabus Panel */
+  .syllabus-section { margin-bottom: 22px; }
+  .syll-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .tab-btn {
+    font-family: 'Oswald', sans-serif; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+    background: var(--panel-raised); border: 1px solid var(--line); color: var(--paper-dim);
+    padding: 6px 14px; border-radius: 3px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  }
+  .tab-btn:hover { border-color: var(--brass-dim); color: var(--paper); }
+  .tab-btn.active { background: var(--brass); color: #1a1a12; border-color: var(--brass); font-weight: 600; }
+  .tab-del-btn { color: var(--warn); font-size: 11px; font-weight: bold; cursor: pointer; padding: 0 2px; }
+  .tab-del-btn:hover { color: #ff6f54; }
+  
+  .syll-mgmt { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; background: var(--panel-raised); padding: 10px; border-radius: 4px; border: 1px dashed var(--line); }
+  .syll-mgmt input[type=text] {
+    background: var(--bg); border: 1px solid var(--line); color: var(--paper);
+    padding: 6px 10px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 12px; flex: 1; min-width: 150px;
+  }
+  .syll-mgmt button {
+    background: var(--panel); border: 1px solid var(--brass-dim); color: var(--brass);
+    padding: 6px 12px; border-radius: 3px; font-family: 'Oswald', sans-serif; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
+  }
+  .syll-mgmt button:hover { background: var(--brass); color: #1a1a12; }
+
+  /* Syllabus Table/Matrix Grid */
+  .ch-matrix { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .ch-row {
+    display: grid; grid-template-columns: 1fr repeat(4, 85px) 35px; gap: 8px;
+    background: var(--panel-raised); padding: 8px 12px; border-radius: 4px; align-items: center;
+    border-left: 3px solid var(--brass-dim);
+  }
+  @media(max-width: 600px) {
+    .ch-row { grid-template-columns: 1fr; gap: 10px; padding: 12px; }
+    .ch-row-actions { justify-content: flex-start; }
+  }
+  .ch-title { font-size: 13px; color: var(--paper); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .matrix-toggle {
+    background: var(--panel); border: 1px solid var(--line); color: var(--paper-dim);
+    font-family: 'Oswald', sans-serif; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase;
+    padding: 6px 0; border-radius: 3px; text-align: center; cursor: pointer; transition: all 0.2s; user-select: none;
+  }
+  .matrix-toggle:hover { border-color: var(--brass-dim); color: var(--paper); }
+  .matrix-toggle.complete { background: var(--ok); border-color: var(--ok); color: var(--bg); font-weight: 600; }
+  .ch-del { text-align: center; color: var(--warn); cursor: pointer; font-size: 14px; opacity: 0.6; }
+  .ch-del:hover { opacity: 1; }
+
   /* Grid layout */
   .grid{ display:grid; grid-template-columns: 1.15fr 1fr; gap: 20px; }
   @media (max-width: 760px){ .grid{ grid-template-columns: 1fr; } }
@@ -297,6 +343,21 @@
     </div>
   </div>
 
+  <div class="panel syllabus-section">
+    <div class="panel-title">Syllabus Master Command</div>
+    
+    <div class="syll-mgmt">
+      <input type="text" id="newSubjectInput" placeholder="New Subject (e.g., Computer Science)">
+      <button id="addSubjectBtn">Add Subject</button>
+      <div style="border-left: 1px solid var(--line); height: 20px; margin: 0 4px;"></div>
+      <input type="text" id="newChapterInput" placeholder="Add chapter to current subject...">
+      <button id="addChapterBtn">Deploy Chapter</button>
+    </div>
+
+    <div class="syll-tabs" id="syllabusTabs"></div>
+    <div class="ch-matrix" id="chapterMatrix"></div>
+  </div>
+
   <div class="grid">
     <div class="panel">
       <div class="panel-title">Today's Objectives</div>
@@ -325,12 +386,13 @@
 <div class="save-flag" id="saveFlag">Saved</div>
 
 <script>
-const CATEGORIES = ['NDA Maths','NDA Physics','Geography','Biology','CLAT','Gym'];
+let CATEGORIES = ['NDA Maths','NDA Physics','Geography','Biology','CLAT','Gym'];
 const STORAGE_KEY = 'ops-log-data-v1';
 const DIAL_CIRC = 2 * Math.PI * 60;
 
-let state = { targets: {}, days: {} };
+let state = { targets: {}, days: {}, syllabus: {} };
 let currentDate = todayStr();
+let activeSubject = '';
 
 function todayStr(){
   const d = new Date();
@@ -357,6 +419,18 @@ function defaultTargets(){
   return t;
 }
 
+function defaultSyllabus(){
+  return {
+    'NDA Maths': [
+      { name: 'Vectors', notes: true, dpp: false, pyq: false, revision: false },
+      { name: 'Probability', notes: false, dpp: false, pyq: false, revision: false }
+    ],
+    'NDA Physics': [
+      { name: 'Kinematics', notes: false, dpp: false, pyq: false, revision: false }
+    ]
+  };
+}
+
 function ensureDay(dateStr){
   if(!state.days[dateStr]){
     state.days[dateStr] = { tasks: [], hours: {} };
@@ -373,11 +447,19 @@ async function loadState(){
       state = parsed;
       if(!state.targets) state.targets = defaultTargets();
       if(!state.days) state.days = {};
+      if(!state.syllabus || Object.keys(state.syllabus).length === 0) state.syllabus = defaultSyllabus();
+      
+      // Keep main CATEGORIES synced with structural syllabus keys dynamically
+      const keys = Object.keys(state.syllabus);
+      if(keys.length > 0) CATEGORIES = keys;
     } else {
-      state = { targets: defaultTargets(), days: {} };
+      state = { targets: defaultTargets(), days: {}, syllabus: defaultSyllabus() };
     }
   }catch(e){
-    state = { targets: defaultTargets(), days: {} };
+    state = { targets: defaultTargets(), days: {}, syllabus: defaultSyllabus() };
+  }
+  if(!activeSubject && Object.keys(state.syllabus).length > 0) {
+    activeSubject = Object.keys(state.syllabus)[0];
   }
 }
 
@@ -426,6 +508,7 @@ function render(){
   renderTasks();
   renderHours();
   renderHistory();
+  renderSyllabus();
 }
 
 function renderReadiness(){
@@ -533,6 +616,124 @@ function renderHistory(){
     lbl.className = 'hist-lbl';
     lbl.textContent = shortLabel(d);
     labels.appendChild(lbl);
+  }
+}
+
+/* ---------- Syllabus Rendering & Management Engine ---------- */
+function renderSyllabus(){
+  const tabContainer = document.getElementById('syllabusTabs');
+  const matrixContainer = document.getElementById('chapterMatrix');
+  
+  tabContainer.innerHTML = '';
+  matrixContainer.innerHTML = '';
+
+  const subjects = Object.keys(state.syllabus);
+  
+  if(subjects.length === 0){
+    matrixContainer.innerHTML = '<div class="empty-note">No active operational sectors. Add a subject above.</div>';
+    return;
+  }
+
+  if(!activeSubject || !state.syllabus[activeSubject]){
+    activeSubject = subjects[0];
+  }
+
+  // Render Subject Tabs
+  subjects.forEach(sub => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (sub === activeSubject ? ' active' : '');
+    btn.innerHTML = `<span>${escapeHtml(sub)}</span>`;
+    
+    const delSpan = document.createElement('span');
+    delSpan.className = 'tab-del-btn';
+    delSpan.innerHTML = '✕';
+    delSpan.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(confirm(`Purge all syllabus data for ${sub}?`)){
+        delete state.syllabus[sub];
+        CATEGORIES = Object.keys(state.syllabus);
+        if(activeSubject === sub) activeSubject = Object.keys(state.syllabus)[0] || '';
+        saveState(); populateCategorySelect(); render();
+      }
+    });
+    
+    btn.appendChild(delSpan);
+    btn.addEventListener('click', () => {
+      activeSubject = sub;
+      renderSyllabus();
+    });
+    tabContainer.appendChild(btn);
+  });
+
+  // Render Chapters Map Matrix
+  const chapters = state.syllabus[activeSubject] || [];
+  if(chapters.length === 0){
+    matrixContainer.innerHTML = '<div class="empty-note">No deployment metrics registered for this subject. Log a chapter layout above.</div>';
+    return;
+  }
+
+  chapters.forEach((ch, idx) => {
+    const row = document.createElement('div');
+    row.className = 'ch-row';
+    row.innerHTML = `
+      <div class="ch-title" title="${escapeHtml(ch.name)}">${escapeHtml(ch.name)}</div>
+      <div class="matrix-toggle ${ch.notes ? 'complete' : ''}" data-type="notes">Notes</div>
+      <div class="matrix-toggle ${ch.dpp ? 'complete' : ''}" data-type="dpp">DPP</div>
+      <div class="matrix-toggle ${ch.pyq ? 'complete' : ''}" data-type="pyq">PYQ</div>
+      <div class="matrix-toggle ${ch.revision ? 'complete' : ''}" data-type="revision">Review</div>
+      <div class="ch-del">✕</div>
+    `;
+
+    // Toggle click listeners
+    row.querySelectorAll('.matrix-toggle').forEach(toggle => {
+      toggle.addEventListener('click', () => {
+        const type = toggle.getAttribute('data-type');
+        ch[type] = !ch[type];
+        saveState();
+        renderSyllabus();
+      });
+    });
+
+    // Delete individual chapter row
+    row.querySelector('.ch-del').addEventListener('click', () => {
+      state.syllabus[activeSubject].splice(idx, 1);
+      saveState();
+      renderSyllabus();
+    });
+
+    matrixContainer.appendChild(row);
+  });
+}
+
+// Global Subject & Chapter Addition Action Event Listeners
+document.getElementById('addSubjectBtn').addEventListener('click', () => {
+  const input = document.getElementById('newSubjectInput');
+  const name = input.value.trim();
+  if(!name) return;
+  if(!state.syllabus[name]){
+    state.syllabus[name] = [];
+    CATEGORIES = Object.keys(state.syllabus);
+    if(!state.targets[name]) state.targets[name] = 1.5; // assign default target limit
+    activeSubject = name;
+    input.value = '';
+    saveState(); populateCategorySelect(); render();
+  }
+});
+
+document.getElementById('addChapterBtn').addEventListener('click', deployChapter);
+document.getElementById('newChapterInput').addEventListener('keydown', e => { if(e.key === 'Enter') deployChapter(); });
+
+function deployChapter(){
+  const input = document.getElementById('newChapterInput');
+  const name = input.value.trim();
+  if(!name || !activeSubject) return;
+  
+  // Guard clause against double input matches
+  const exists = state.syllabus[activeSubject].some(ch => ch.name.toLowerCase() === name.toLowerCase());
+  if(!exists){
+    state.syllabus[activeSubject].push({ name, notes: false, dpp: false, pyq: false, revision: false });
+    input.value = '';
+    saveState(); renderSyllabus();
   }
 }
 
@@ -685,8 +886,8 @@ document.getElementById('nextDay').addEventListener('click', () => { currentDate
 document.getElementById('jumpToday').addEventListener('click', () => { currentDate = todayStr(); render(); });
 
 (async function init(){
-  populateCategorySelect();
   await loadState();
+  populateCategorySelect();
   pomo.remaining = pomoTotalSeconds();
   render();
   renderPomo();
